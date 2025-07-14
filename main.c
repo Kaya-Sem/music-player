@@ -1,10 +1,36 @@
-
+#define _XOPEN_SOURCE 500
 #include "glib.h"
 #include "settings.h"
+#include <ftw.h>
 #include <gtk/gtk.h>
+#include <stdio.h>
+#include <string.h>
 
-static void print_hello(GtkWidget *widget, gpointer data) {
-  g_print("Hello World\n");
+const char *LIBRARY_PATH = "/home/kayasem/Music/PPM/";
+
+int is_song(const char *filename) {
+  const char *exts[] = {".mp3", ".flac", ".wav", ".ogg", ".aac"};
+  size_t len = strlen(filename);
+  for (int i = 0; i < sizeof(exts) / sizeof(exts[0]); ++i) {
+    size_t ext_len = strlen(exts[i]);
+    if (len >= ext_len && strcmp(filename + len - ext_len, exts[i]) == 0) {
+      return 1;
+    }
+  }
+  return 0;
+}
+
+int find_song(const char *fpath, const struct stat *sb, int typeflag,
+              struct FTW *ftwbuf) {
+  if (typeflag == FTW_F && is_song(fpath)) {
+    g_print("Found song: %s\n", fpath);
+  }
+  return 0; // Continue
+}
+
+void *scan_library(gpointer data) {
+  nftw(LIBRARY_PATH, find_song, 16, FTW_PHYS);
+  return NULL;
 }
 
 static void activate(GtkApplication *app, gpointer user_data) {
@@ -49,6 +75,8 @@ static void activate(GtkApplication *app, gpointer user_data) {
   gtk_window_set_child(GTK_WINDOW(window), hbox);
 
   gtk_window_present(GTK_WINDOW(window));
+
+  g_thread_new("library-scan", scan_library, NULL);
 }
 
 int main(int argc, char **argv) {
