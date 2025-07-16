@@ -6,7 +6,16 @@
 #include <stdio.h>
 #include <string.h>
 
-const char *LIBRARY_PATH = "/home/kayasem/Music/PPM/";
+const char *LIBRARY_PATH = "/home/kayasem/Music/Library/";
+
+typedef struct {
+  char **songs;
+  int count;
+} SongList;
+
+typedef struct {
+  GPtrArray *array;
+} ScanContext;
 
 int is_song(const char *filename) {
   const char *exts[] = {".mp3", ".flac", ".wav", ".ogg", ".aac"};
@@ -20,17 +29,34 @@ int is_song(const char *filename) {
   return 0;
 }
 
+static ScanContext *current_context = NULL;
+
 int find_song(const char *fpath, const struct stat *sb, int typeflag,
               struct FTW *ftwbuf) {
   if (typeflag == FTW_F && is_song(fpath)) {
-    g_print("Found song: %s\n", fpath);
+    g_ptr_array_add(current_context->array, g_strdup(fpath)); // add song
   }
-  return 0; // Continue
+  return 0;
 }
 
 void *scan_library(gpointer data) {
+  SongList *result = g_new0(SongList, 1);
+  GPtrArray *array = g_ptr_array_new_with_free_func(g_free);
+
+  ScanContext context = { .array = array };
+  current_context = &context;
+
   nftw(LIBRARY_PATH, find_song, 16, FTW_PHYS);
-  return NULL;
+
+  result->count = array->len;
+  result->songs = (char **)g_ptr_array_free(array, FALSE); // take ownership
+
+  // DEBUG: print result
+  for (int i = 0; i < result->count; i++) {
+    g_print("Scanned song: %s\n", result->songs[i]);
+  }
+
+  return result;
 }
 
 static void activate(GtkApplication *app, gpointer user_data) {
@@ -39,8 +65,14 @@ static void activate(GtkApplication *app, gpointer user_data) {
   GtkWidget *label = gtk_label_new("Here come my audio controls!");
 
   window = gtk_application_window_new(app);
-  gtk_window_set_title(GTK_WINDOW(window), "My super sexy music player");
+  gtk_window_set_title(
+      GTK_WINDOW(window),
+      "My super sexy music player - Now playing: Easy Go ~ Nils Petter "
+      "Molvaer"); // Allow this to be changed by the user in settings
   gtk_window_set_default_size(GTK_WINDOW(window), 200, 200);
+  gtk_window_maximize(GTK_WINDOW(window));
+  // gtk_window_set_decorated(GTK_WINDOW(window), FALSE); // Allow this to be
+  // changed by the user in settings
 
   GtkWidget *hpaned = gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
   GtkWidget *frame1 = gtk_frame_new(NULL);
@@ -76,12 +108,17 @@ static void activate(GtkApplication *app, gpointer user_data) {
 
   gtk_window_present(GTK_WINDOW(window));
 
-  g_thread_new("library-scan", scan_library, NULL);
+  // Event bus or MVC? Also, give players the following options:
+  // - Disable scanning on startup
+  // - Allow scanning on startup
+  // - start manual rescan
+  // g_thread_new("library-scan", scan_library, NULL);
 }
 
 int main(int argc, char **argv) {
 
-  g_print("%s\n", version);
+  g_print("\nMade with love by Kaya-Sem\n");
+  g_print("Version: %s\n", version);
   GtkApplication *app;
   int status;
 
