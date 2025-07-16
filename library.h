@@ -13,10 +13,7 @@ const char *exts[] = {".mp3", ".flac", ".wav", ".ogg", ".aac"};
 
 typedef struct LibraryModel LibraryModel;
 
-/* functions and their arity */
-typedef gboolean (*func_0) (LibraryModel*);
-typedef gboolean (*func_1) (LibraryModel*, void*);
-typedef gboolean (*func_2) (LibraryModel*, void*, void*);
+
 
 struct LibraryModel {
 char ** sources;
@@ -26,21 +23,6 @@ char ** sources;
 
   /* functions */
 
-  func_0 full_scan; // does a full rescan of the provided libraries
-  func_0 reset; // resets both in-memory library and the sqlite metadata library
-  func_0 prune;  // removes all dead or stale entries
-  
-
-  func_1 partial_scan; // takes in a string for a partial rescan of that library
-  func_1 remove_song; 
-  func_1 remove_album; 
-  func_1 remove_artist; 
-
-  /* In addition to local removal, also deletes on filesystem */
-  
-  func_1 delete_artist; 
-  func_1 song_artist; 
-  func_1 album_artist; 
 };
 
 gboolean library_full_scan(LibraryModel *lm) {
