@@ -4,64 +4,49 @@
 #include <ftw.h>
 #include <gtk/gtk.h>
 #include <stdio.h>
-#include <string.h>
+#include "library.h"
 
-const char *LIBRARY_PATH = "/home/kayasem/Music/Library/";
+// Global LibraryModel for demonstration
+LibraryModel global_library = {0};
+GtkWidget *status_label = NULL;
 
-typedef struct {
-  char **songs;
-  int count;
-} SongList;
-
-typedef struct {
-  GPtrArray *array;
-} ScanContext;
-
-int is_song(const char *filename) {
-  const char *exts[] = {".mp3", ".flac", ".wav", ".ogg", ".aac"};
-  size_t len = strlen(filename);
-  for (int i = 0; i < sizeof(exts) / sizeof(exts[0]); ++i) {
-    size_t ext_len = strlen(exts[i]);
-    if (len >= ext_len && strcmp(filename + len - ext_len, exts[i]) == 0) {
-      return 1;
+// Idle callback to update UI after scan
+static gboolean update_ui_with_scan_results(gpointer data) {
+    SongList *result = (SongList *)data;
+    // Update the global library model
+    if (global_library.songs) {
+        g_strfreev(global_library.songs);
     }
-  }
-  return 0;
+    global_library.songs = result->songs;
+    global_library.count = result->count;
+    // Update the status label
+    if (status_label) {
+        char buf[128];
+        snprintf(buf, sizeof(buf), "Songs in library: %d", result->count);
+        gtk_label_set_text(GTK_LABEL(status_label), buf);
+    }
+    g_free(result); // Only free the struct, not the songs array
+    return FALSE;
 }
 
-static ScanContext *current_context = NULL;
-
-int find_song(const char *fpath, const struct stat *sb, int typeflag,
-              struct FTW *ftwbuf) {
-  if (typeflag == FTW_F && is_song(fpath)) {
-    g_ptr_array_add(current_context->array, g_strdup(fpath)); // add song
-  }
-  return 0;
+// Thread function to scan library and schedule UI update
+void *threaded_scan_library(gpointer data) {
+    SongList *result = scan_library(NULL);
+    g_idle_add(update_ui_with_scan_results, result);
+    return NULL;
 }
 
-void *scan_library(gpointer data) {
-  SongList *result = g_new0(SongList, 1);
-  GPtrArray *array = g_ptr_array_new_with_free_func(g_free);
-
-  ScanContext context = { .array = array };
-  current_context = &context;
-
-  nftw(LIBRARY_PATH, find_song, 16, FTW_PHYS);
-
-  result->count = array->len;
-  result->songs = (char **)g_ptr_array_free(array, FALSE); // take ownership
-
-  // DEBUG: print result
-  for (int i = 0; i < result->count; i++) {
-    g_print("Scanned song: %s\n", result->songs[i]);
-  }
-
-  return result;
+// Button callback to start scan
+static void on_scan_button_clicked(GtkButton *button, gpointer user_data) {
+    g_thread_new("library-scan", threaded_scan_library, NULL);
 }
 
 static void activate(GtkApplication *app, gpointer user_data) {
   GtkWidget *window;
   GtkWidget *hbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+  status_label = gtk_label_new("Songs in library: 0");
+  GtkWidget *scan_button = gtk_button_new_with_label("Scan Library");
+  g_signal_connect(scan_button, "clicked", G_CALLBACK(on_scan_button_clicked), NULL);
   GtkWidget *label = gtk_label_new("Here come my audio controls!");
 
   window = gtk_application_window_new(app);
@@ -102,6 +87,8 @@ static void activate(GtkApplication *app, gpointer user_data) {
 
   gtk_box_append(GTK_BOX(hbox), hpaned);
   gtk_box_append((GtkBox *)hbox, hpaned);
+  gtk_box_append((GtkBox *)hbox, status_label);
+  gtk_box_append((GtkBox *)hbox, scan_button);
   gtk_box_append((GtkBox *)hbox, label);
 
   gtk_window_set_child(GTK_WINDOW(window), hbox);

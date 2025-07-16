@@ -1,8 +1,9 @@
 #ifndef LIBRARY
 #define LIBRARY
 
-#include "glib.h"
 #define _XOPEN_SOURCE 500
+
+#include "glib.h"
 #include <gtk/gtk.h>
 #include <ftw.h>
 #include "settings.h"
@@ -22,7 +23,6 @@ char ** sources;
 
     char ** songs;
     int count;
-
 
   /* functions */
 
@@ -94,8 +94,6 @@ void *scan_library(gpointer data) {
   for (int i = 0; i < result->count; i++) {
     g_print("Scanned song: %s\n", result->songs[i]);
   }
-
-  lib.full_scan(&lib)
 
   return result;
 }
